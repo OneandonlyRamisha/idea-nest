@@ -20,6 +20,7 @@ import CategoryInput from "./categoryInput";
 import { Picker } from "@react-native-picker/picker";
 import { useSelectedIdeaIdContext } from "../store/selectedIdeaId";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
+import { useSQLiteContext } from "expo-sqlite";
 
 export default function ModalComponent({
   visible,
@@ -29,6 +30,7 @@ export default function ModalComponent({
 }) {
   const { idea, setIdea } = useIdeaItemContext();
   const { selectedIdeaId, setSelectedIdeaId } = useSelectedIdeaIdContext();
+  const db = useSQLiteContext();
 
   const [formData, setFormData] = useState({
     favorite: false,
@@ -98,22 +100,86 @@ export default function ModalComponent({
     });
   }
 
-  const handleSave = () => {
+  // const handleSave = () => {
+  //   if (!formData.title) {
+  //     Alert.alert("Enter Title", "You must enter the title of the idea", [
+  //       { style: "cancel", text: "Okay" },
+  //     ]);
+  //     return;
+  //   }
+  //   const timestamp = Date.now();
+
+  //   if (isEditing && currentIdea) {
+  //     setIdea((prev) =>
+  //       prev.map((item) =>
+  //         item.id === currentIdea.id
+  //           ? { ...item, ...formData, updatedAt: timestamp }
+  //           : item
+  //       )
+  //     );
+  //   } else {
+  //     const newIdea = {
+  //       id: timestamp.toString(),
+  //       validation: [],
+  //       title: formData.title,
+  //       problem: formData.problem || "",
+  //       solution: formData.solution || "",
+  //       audience: formData.audience || "",
+  //       businessModel: formData.model || "",
+  //       monetization: formData.monetization || "",
+  //       techStack: formData.stack || "",
+  //       notes: formData.notes || "",
+  //       status: formData.status || "new",
+  //       category: formData.category,
+  //       favorite: formData.favorite,
+  //       updatedAt: timestamp,
+  //     };
+  //     setIdea((prev) => [newIdea, ...prev]);
+  //   }
+  //   setEditMode(null);
+  //   handleModalClick();
+  // };
+
+  const handleSave = async () => {
     if (!formData.title) {
-      Alert.alert("Enter Title", "You must enter the title of the idea", [
-        { style: "cancel", text: "Okay" },
-      ]);
+      Alert.alert("Enter Title", "You must enter the title of the idea");
       return;
     }
+
     const timestamp = Date.now();
 
     if (isEditing && currentIdea) {
+      const updatedIdea = {
+        ...currentIdea,
+        ...formData,
+        updatedAt: timestamp,
+      };
+
       setIdea((prev) =>
-        prev.map((item) =>
-          item.id === currentIdea.id
-            ? { ...item, ...formData, updatedAt: timestamp }
-            : item
-        )
+        prev.map((item) => (item.id === currentIdea.id ? updatedIdea : item))
+      );
+
+      await db.runAsync(
+        `UPDATE ideas SET 
+        title=?, problem=?, solution=?, audience=?, businessModel=?, monetization=?, 
+        techStack=?, notes=?, status=?, category=?, favorite=?, updatedAt=?, validation=? 
+       WHERE id=?`,
+        [
+          updatedIdea.title,
+          updatedIdea.problem,
+          updatedIdea.solution,
+          updatedIdea.audience,
+          updatedIdea.businessModel,
+          updatedIdea.monetization,
+          updatedIdea.techStack,
+          updatedIdea.notes,
+          updatedIdea.status,
+          JSON.stringify(updatedIdea.category),
+          updatedIdea.favorite ? 1 : 0,
+          updatedIdea.updatedAt,
+          JSON.stringify(updatedIdea.validation || []),
+          updatedIdea.id,
+        ]
       );
     } else {
       const newIdea = {
@@ -132,26 +198,70 @@ export default function ModalComponent({
         favorite: formData.favorite,
         updatedAt: timestamp,
       };
+
       setIdea((prev) => [newIdea, ...prev]);
+
+      await db.runAsync(
+        `INSERT INTO ideas (
+        id, title, problem, solution, audience, businessModel, monetization,
+        techStack, notes, status, category, favorite, updatedAt, validation
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          newIdea.id,
+          newIdea.title,
+          newIdea.problem,
+          newIdea.solution,
+          newIdea.audience,
+          newIdea.businessModel,
+          newIdea.monetization,
+          newIdea.techStack,
+          newIdea.notes,
+          newIdea.status,
+          JSON.stringify(newIdea.category),
+          newIdea.favorite ? 1 : 0,
+          newIdea.updatedAt,
+          JSON.stringify([]),
+        ]
+      );
     }
+
     setEditMode(null);
     handleModalClick();
   };
 
-  function handleDelete() {
+  // function handleDelete() {
+  //   Alert.alert("Delete Idea", "Are you sure you want to delete this idea?", [
+  //     { text: "Cancel", style: "cancel" },
+  //     {
+  //       text: "Delete",
+  //       style: "destructive",
+  //       onPress: () => {
+  //         setIdea((prev) => prev.filter((item) => item.id !== editMode));
+  //         editMode === selectedIdeaId ? setSelectedIdeaId(null) : undefined;
+  //         handleModalClick();
+  //       },
+  //     },
+  //   ]);
+  // }
+
+  const handleDelete = async () => {
     Alert.alert("Delete Idea", "Are you sure you want to delete this idea?", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Delete",
         style: "destructive",
-        onPress: () => {
+        onPress: async () => {
           setIdea((prev) => prev.filter((item) => item.id !== editMode));
-          editMode === selectedIdeaId ? setSelectedIdeaId(null) : undefined;
+          await db.runAsync("DELETE FROM ideas WHERE id = ?", [editMode]);
+
+          if (editMode === selectedIdeaId) {
+            setSelectedIdeaId(null);
+          }
           handleModalClick();
         },
       },
     ]);
-  }
+  };
 
   return (
     <Modal visible={visible} animationType="slide">

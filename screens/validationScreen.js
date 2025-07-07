@@ -9,7 +9,7 @@ import AddIdeaBtn from "../components/addIdeaBtn";
 import ValidationComponent from "../components/validationComponenet";
 import { useIdeaItemContext } from "../store/ideaItem";
 import { useSelectedIdeaIdContext } from "../store/selectedIdeaId";
-
+import { useEffect } from "react";
 export default function ValidationScreen() {
   const { selectedIdeaId, setSelectedIdeaId } = useSelectedIdeaIdContext();
   const [visible, setVisible] = useState(false);
@@ -17,7 +17,7 @@ export default function ValidationScreen() {
 
   const { idea } = useIdeaItemContext();
 
-  const currentIdea = idea.filter((data) => data.id === selectedIdeaId)[0];
+  const currentIdea = idea.find((data) => data.id === selectedIdeaId) || null;
 
   function handleAddValidation() {
     if (selectedIdeaId === null) {
@@ -32,6 +32,12 @@ export default function ValidationScreen() {
     setVisible((prev) => !prev);
   }
 
+  useEffect(() => {
+    if (!idea.find((i) => i.id === selectedIdeaId)) {
+      setSelectedIdeaId(null);
+    }
+  }, [idea]);
+
   return (
     <ScreenWrapper>
       <Text style={styles.header}>Validation Tracker</Text>
@@ -42,16 +48,14 @@ export default function ValidationScreen() {
       <ProgressComponent selectedId={currentIdea} />
       <AddIdeaBtn title="Add Validation Step" onPress={handleAddValidation} />
       <View style={styles.body}>
-        {selectedIdeaId === null
-          ? undefined
-          : currentIdea.validation.map((data) => (
-              <ValidationComponent
-                key={data.id}
-                ideaData={data}
-                setEditValidation={setEditValidation}
-                setVisible={setVisible}
-              />
-            ))}
+        {currentIdea?.validation?.map((data) => (
+          <ValidationComponent
+            key={data.id}
+            ideaData={data}
+            setEditValidation={setEditValidation}
+            setVisible={setVisible}
+          />
+        ))}
       </View>
       <HalfModal
         visible={visible}

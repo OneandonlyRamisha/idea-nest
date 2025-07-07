@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { validationInput } from "../lib/validationInput";
 import InputItems from "./inputItems";
 import PrimaryBtn from "./primaryBtn";
-
+import { useSQLiteContext } from "expo-sqlite";
 export default function HalfModal({
   visible,
   setVisible,
@@ -14,6 +14,7 @@ export default function HalfModal({
   setEditValidation,
 }) {
   const { setIdea } = useIdeaItemContext();
+  const db = useSQLiteContext();
 
   const [formData, setFormData] = useState({
     completed: false,
@@ -43,7 +44,7 @@ export default function HalfModal({
     setFormData((prev) => ({ ...prev, [name]: text }));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (
       !formData.title ||
       !formData.description ||
@@ -59,62 +60,64 @@ export default function HalfModal({
 
     const timestamp = Date.now();
 
+    let updatedValidations;
+
     if (editValidation) {
-      setIdea((prev) =>
-        prev.map((item) =>
-          item.id === currentIdea.id
-            ? {
-                ...item,
-                validation: item.validation.map((v) =>
-                  v.id === editValidation.id
-                    ? { ...v, ...formData, updatedAt: timestamp }
-                    : v
-                ),
-              }
-            : item
-        )
+      updatedValidations = currentIdea.validation.map((v) =>
+        v.id === editValidation.id
+          ? { ...v, ...formData, updatedAt: timestamp }
+          : v
       );
     } else {
       const newValidation = {
         ...formData,
-        id: Date.now().toString(),
-        target: formData.target,
-        result: formData.result,
+        id: timestamp.toString(),
         updatedAt: timestamp,
       };
-
-      setIdea((prev) =>
-        prev.map((item) =>
-          item.id === currentIdea.id
-            ? { ...item, validation: [newValidation, ...item.validation] }
-            : item
-        )
-      );
+      updatedValidations = [newValidation, ...currentIdea.validation];
     }
+
+    setIdea((prev) =>
+      prev.map((item) =>
+        item.id === currentIdea.id
+          ? { ...item, validation: updatedValidations }
+          : item
+      )
+    );
+
+    await db.runAsync(
+      "UPDATE ideas SET validation = ?, updatedAt = ? WHERE id = ?",
+      [JSON.stringify(updatedValidations), timestamp, currentIdea.id]
+    );
 
     setVisible(false);
     setEditValidation(null);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     Alert.alert("Delete Validation", "Are you sure?", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Delete",
         style: "destructive",
-        onPress: () => {
+        onPress: async () => {
+          const updatedValidations = currentIdea.validation.filter(
+            (v) => v.id !== editValidation.id
+          );
+
           setIdea((prev) =>
             prev.map((item) =>
               item.id === currentIdea.id
-                ? {
-                    ...item,
-                    validation: item.validation.filter(
-                      (v) => v.id !== editValidation.id
-                    ),
-                  }
+                ? { ...item, validation: updatedValidations }
                 : item
             )
           );
+
+          await db.runAsync("UPDATE ideas SET validation = ? WHERE id = ?", [
+            JSON.stringify(updatedValidations),
+            currentIdea.id,
+          ]);
+
           setVisible(false);
           setEditValidation(null);
         },

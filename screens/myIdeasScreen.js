@@ -27,7 +27,7 @@ import {
 export default function MyIdeasScreen() {
   const [visible, setVisible] = useState(false);
   const [editMode, setEditMode] = useState(null);
-  const { idea } = useIdeaItemContext();
+  const { idea, setIdea } = useIdeaItemContext();
   const [activeFilter, setActiveFIlter] = useState("All");
 
   const route = useRoute();
